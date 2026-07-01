@@ -2621,6 +2621,10 @@ td .rule{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       Mapeamento
     </a>
+    <a class="nl" id="nl-relatorio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Relatório de Alterações
+    </a>
   </nav>
 
   <div class="side-foot">
@@ -3078,6 +3082,49 @@ td .rule{
         </div>
       </div>
     </div>
+    <!-- ═══════════ RELATÓRIO DE ALTERAÇÕES ═══════════ -->
+    <style>
+      #pg-relatorio .fbtn{font-size:11.5px;font-weight:600;padding:7px 14px;border-radius:99px;border:1px solid var(--line-md);background:rgba(255,255,255,.02);color:var(--paper-60);cursor:pointer;transition:all .14s}
+      #pg-relatorio .fbtn:hover{border-color:var(--line-hi);color:var(--paper-90)}
+      #pg-relatorio .fbtn.on{background:var(--ok-dim);border-color:var(--ok-edge);color:var(--ok-2)}
+    </style>
+    <div class="pg" id="pg-relatorio">
+      <div style="max-width:900px;margin:0 auto;padding:32px 0 80px">
+
+        <div style="margin-bottom:28px">
+          <div style="font-family:var(--display);font-size:28px;font-weight:700;letter-spacing:-.03em;margin-bottom:6px">Relatório de <span style="color:var(--ok-2)">Alterações</span></div>
+          <div style="font-size:13px;color:var(--paper-40)">Histórico completo de correções e melhorias aplicadas ao motor da plataforma</div>
+        </div>
+
+        <!-- Filtros -->
+        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" id="rel-filtros">
+          <button class="fbtn on" data-filter="all" onclick="relFilter(this,'all')">Todos</button>
+          <button class="fbtn" data-filter="bug"       onclick="relFilter(this,'bug')">🐛 Bug fix</button>
+          <button class="fbtn" data-filter="feature"   onclick="relFilter(this,'feature')">✨ Melhoria</button>
+          <button class="fbtn" data-filter="rihappy"   onclick="relFilter(this,'rihappy')">🔴 Ri Happy</button>
+        </div>
+
+        <!-- Tabela -->
+        <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead>
+              <tr style="background:rgba(255,255,255,.03);border-bottom:1px solid var(--line)">
+                <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-40);white-space:nowrap">Data / Hora</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-40)">Responsável</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-40)">Canal</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-40)">Tipo</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-40)">Descrição</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-40);white-space:nowrap">Arquivo · Linha</th>
+              </tr>
+            </thead>
+            <tbody id="rel-tbody"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:14px;font-size:11.5px;color:var(--paper-40);font-family:var(--mono)" id="rel-count"></div>
+      </div>
+    </div>
+
     <div class="pg" id="pg-envio">
 <div class="ct-tabhead">
     <div>
@@ -4034,9 +4081,11 @@ function tomorrowDate(fmt='iso') {
 const BRAND_NORMALIZATION = {
   // Para "LIFE" (The Game of Life Edição X), usar a licença do produto.
   // Ex.: G3171B071 = Game of Life Harry Potter → marca = HARRY POTTER
-  'LIFE': 'HARRY POTTER'
-  // Adicione mais mapeamentos aqui se necessário:
-  // 'BEY BLADE': 'BEYBLADE',
+  'LIFE':               'HARRY POTTER',
+  'BEY BLADE':          'BEYBLADE',
+  'MARVEL SUPER HEROES':'MARVEL',
+  'STAR WARS REBELS':   'STAR WARS',
+  'AVENGERS ASSEMBLE':  'AVENGERS'
 };
 
 // v12: Helper p/ garantir formato US (ponto decimal) em campos numéricos Amazon
@@ -4171,7 +4220,8 @@ function normalizeEan(raw) {
   if (s.length === 13) return s;
   if (s.length === 12) return '0' + s;                  // UPC → EAN13
   if (s.length === 14 && s.startsWith('0')) return s.substring(1);  // DUN→EAN13
-  if (s.length > 13) return s.substring(s.length - 13); // truncar
+  if (s.length === 14) return s.substring(0, 13);                   // GTIN-14 sem prefixo 0: primeiros 13
+  if (s.length > 14) return s.substring(s.length - 13);             // > 14: trunca pela direita
   return s.padStart(13, '0');
 }
 
@@ -4261,7 +4311,20 @@ function anosFromMeses(meses) {
 // canônicos extraídos das abas INDICE_ do template oficial. resolveEnum
 // aceita: já-formatado (passthrough), label puro, ou código "(1)".
 const RH_BRAND_HASH = {
-  'SEM LICENÇA':'5e14b9fbc06b25cda3c8b750', 'HASBRO':'5e790df9028c175123150cde'
+  'SEM LICENÇA':  '5e14b9fbc06b25cda3c8b750',
+  'HASBRO':       '5e790df9028c175123150cde',
+  'AVENGERS':     '5e2519f9801f4d7c4606a9ed',
+  'NERF':         '5e2519f9801f4d7c4606aafe',
+  'MARVEL':       '5eab13873bd1eb3ce40cf172',
+  'TRANSFORMERS': '5e2519f9801f4d7c4606ab73',
+  'PLAY-DOH':     '5e2519f9801f4d7c4606ab2a',
+  'BEYBLADE':     '5e2519f9801f4d7c4606aa02',
+  'STAR WARS':    '5e2519f9801f4d7c4606ab5e',
+  'BABY ALIVE':   '5e2519f9801f4d7c4606a9f1',
+  'FURBY':        '5e2519f9801f4d7c4606aa60',
+  'PLAYSKOOL':    '5e2519f9801f4d7c4606ab2c',
+  'HARRY POTTER': '5e2519f9801f4d7c4606aa7a',
+  'PEPPA PIG':    '5e2519f9801f4d7c4606ab1a'
 };
 const RH_UNIT_HASH = { 'UNIDADE':'5ddd5d2c1ba1c916b8ac6502', 'CAIXA':'5ddd208ebc27da53085c6ef4', 'FARDO':'5dfbf4854844cd000184cd76' };
 // CSTs fiscais (código → "label - {hash}")
@@ -4306,10 +4369,20 @@ function rhUnit(raw){
 // Sem isto a ferramenta usava um conjunto fixo: preenchia campos que não
 // existem p/ o subnível e deixava vazios os que o RH exige.
 const RH_SUBNIVEL_HASH = {
-  'LANÇA-ÁGUA':'64540f73ce25f0fe8d01d528', 'LANÇA-BOLHAS':'64541221ce25f0fe8d01d52b',
-  'LANÇA-DARDOS':'6454146ece25f0fe8d01d534', 'LANÇA-DISCOS':'64541369ce25f0fe8d01d530',
-  'LANÇA-OBJETOS':'6474e05b6e551d79efbdcdbc', 'BONECOS DE AÇÃO':'643f1454ce25f0fe8d01cf02',
-  'JOGOS DE ADVINHAÇÃO':'63d80cb2e6fa520001587154', 'IMAGEM E AÇÃO':'63d80d02e6fa52000158715a'
+  'LANÇA-ÁGUA':                '64540f73ce25f0fe8d01d528',
+  'LANÇA-BOLHAS':              '64541221ce25f0fe8d01d52b',
+  'LANÇA-DARDOS':              '6454146ece25f0fe8d01d534',
+  'LANÇA-DISCOS':              '64541369ce25f0fe8d01d530',
+  'LANÇA-OBJETOS':             '6474e05b6e551d79efbdcdbc',
+  'BONECOS DE AÇÃO':           '643f1454ce25f0fe8d01cf02',
+  'JOGOS DE ADVINHAÇÃO':       '63d80cb2e6fa520001587154',
+  'IMAGEM E AÇÃO':             '63d80d02e6fa52000158715a',
+  'ACTION FIGURE ARTICULADO':  '6634e6696f325947f227dc2c',
+  'ACTION FIGURE DE ANIMAÇÕES':'6418b52340299dcb5f9cf665',
+  'JOGOS DE MESA':             '641b54e27a05496c499138fb',
+  'MONTAGEM E MODELISMO':      '6491ac426e551d79efbddaee',
+  'MASSINHA DE MODELAR':       '641b4f1c7a05496c4991381a',
+  'PIÕES':                     '6454253ece25f0fe8d01d54e'
 };
 // atributos obrigatórios por subnível (subset usado p/ Hasbro; demais herdam BASE)
 const RH_SUBNIVEL_ATTRS = {
@@ -4317,6 +4390,22 @@ const RH_SUBNIVEL_ATTRS = {
   'BONECOS DE AÇÃO':['COR','CERTIFICADOR','INTERATIVIDADE','ARTICULAÇÕES','GÊNERO','CÓDIGO CERTIFICAÇÃO','FABRICANTE','ITENS INCLUSOS','ACOMPANHA PILHAS?','IDADE EM ANOS','MODELO','TIPO DE PILHA','NOME IDENTIFICADOR DO PRODUTO','IDADE EM MESES','MATERIAL','UTILIZA PILHAS?']
 };
 const RH_SUBNIVEL_BASE_ATTRS = ['COR','CERTIFICADOR','GÊNERO','CÓDIGO CERTIFICAÇÃO','FABRICANTE','ITENS INCLUSOS','IDADE EM ANOS','MODELO','NOME IDENTIFICADOR DO PRODUTO','IDADE EM MESES','MATERIAL'];
+// Auto-derivação de subnível RH a partir do tipo Amazon quando CRIS não tem o campo
+const AMZ_TO_RH_SUB = {
+  'TOY_FIGURE':          'ACTION FIGURE ARTICULADO',
+  'ACTION_FIGURE':       'ACTION FIGURE ARTICULADO',
+  'DOLL':                'ACTION FIGURE DE ANIMAÇÕES',
+  'BOARD_GAME':          'JOGOS DE MESA',
+  'CARD_GAME':           'JOGOS DE MESA',
+  'PUZZLE':              'MONTAGEM E MODELISMO',
+  'BUILDING_TOY':        'MONTAGEM E MODELISMO',
+  'SPINNING_TOY_TOP':    'PIÕES',
+  'TOY_GUN':             'LANÇA-DARDOS',
+  'NERF':                'LANÇA-DARDOS',
+  'WATER_TOY':           'LANÇA-ÁGUA',
+  'HOBBIES':             'MASSINHA DE MODELAR',
+  'MODELING_CLAY':       'MASSINHA DE MODELAR'
+};
 function rhSubnivel(raw){
   const s = String(raw||'').trim();
   if (!s) return '';
@@ -4777,7 +4866,7 @@ async function fillTemplate(rawBuffer, sheetFills) {
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════
 function nav(id) {
-  ['dash','processar','mapeamento','envio'].forEach(p => {
+  ['dash','processar','mapeamento','relatorio','envio'].forEach(p => {
     document.getElementById('pg-'+p).classList.toggle('on', p === id);
     document.getElementById('nl-'+p).classList.toggle('on', p === id);
   });
@@ -4785,6 +4874,7 @@ function nav(id) {
     dash: ['Dashboard','visão geral'],
     processar: ['Processar','gerar arquivos de marketplace'],
     mapeamento: ['Mapeamento','campos por canal'],
+    relatorio: ['Relatório de Alterações','histórico de correções e melhorias'],
     envio: ['Envio do cliente','planilha do cliente → Planilha Chris']
   };
   document.getElementById('crumb-page').textContent = titles[id][0];
@@ -4798,7 +4888,7 @@ function nav(id) {
   }
 }
 
-['dash','processar','mapeamento','envio'].forEach(p => {
+['dash','processar','mapeamento','relatorio','envio'].forEach(p => {
   document.getElementById('nl-'+p).addEventListener('click', () => nav(p));
 });
 document.getElementById('bar-proc').addEventListener('click',  () => nav('processar'));
@@ -5454,6 +5544,8 @@ const toyFigureTypeFor = tipo => {
 
 function amzVals(p, tipo) {
   const pr = price(p['Comum · Preço sugerido ao consumidor (R$)'], p['Amazon · Markup (%)']);
+  const lote = loteFor(p);
+  const prSug = (lote && lote.preco_sugerido != null) ? amzNum(lote.preco_sugerido) : amzNum(pr);
   const catInfo = amzCatFor(tipo);
   const fullSku  = p['Comum · SKU / Ref. Fornecedor'];
   const shortSku = skuShort(fullSku);
@@ -5509,7 +5601,7 @@ function amzVals(p, tipo) {
 
     // ── FABRICANTE / IMPORTAÇÃO ──────────────────────────────────
     'manufacturer#1.value':                            'Hasbro',
-    'country_of_origin#1.value':                       p['Comum · País de origem'] || 'China',
+    'country_of_origin#1.value':                       (!isNaN(p['Comum · País de origem']) && p['Comum · País de origem'] !== '' && p['Comum · País de origem'] != null) ? 'China' : (p['Comum · País de origem'] || 'China'),
     'import_designation#1.value':                      importDesignationFor(p),
     'ncm_code#1.value':                                String(p['Comum · NCM']||'9503.00.99').replace(/\./g,''),
 
@@ -5579,11 +5671,11 @@ function amzVals(p, tipo) {
 
     // ── PALLETIZAÇÃO ─────────────────────────────────────────────
     'rtip_items_per_inner_pack#1.value':               pack,
-    'master_pack_layers_per_pallet_quantity#1.value':  '5',
-    'master_packs_per_layer_quantity#1.value':         '27',
+    'master_pack_layers_per_pallet_quantity#1.value':  '',
+    'master_packs_per_layer_quantity#1.value':         '',
 
     // ── PREÇO E CUSTO ────────────────────────────────────────────
-    'list_price#1.value_with_tax':                     amzNum(pr),  // v12: garante ponto
+    'list_price#1.value_with_tax':                     prSug,  // v12: garante ponto · prioriza LOTE
     'cost_price#1.value':                              amzNum(p['Comum · Custo Brasil (R$)']),  // v12: sempre ponto · sobrescrito por vendor em genAmz
 
     // ── SEGURANÇA / BATERIA ──────────────────────────────────────
@@ -5672,6 +5764,7 @@ function amzVals(p, tipo) {
     extras['model_number#1.value']            = p['Comum · SKU / Ref. Fornecedor'] || '';  // model_number obrigatório em COSTUME_MASK
   }
 
+  baseVals['unit_count_type#1.value'] = 'Unidade';
   return Object.assign(baseVals, extras);
 }
 
@@ -5715,7 +5808,7 @@ function ameVals(p) {
     'Altura (cm)':                                     fmtNum(p['Comum · Altura embalagem unit. (cm)'], 2),
     'Profundidade (cm)':                               fmtNum(p['Comum · Prof. embalagem unit. (cm)'], 2),
     'Largura (cm)':                                    fmtNum(p['Comum · Largura embalagem unit. (cm)'], 2),
-    'EAN da caixa de compra':                          fmtEan(p['Ri Happy · DUN (EAN caixa master)'] || p['Comum · EAN caixa de compra']),
+    'EAN da caixa de compra':                          fmtEan(p['Americanas · EAN caixa de compra'] || p['Comum · DUN (EAN caixa master)'] || p['Comum · EAN caixa de compra']),
     'Quantidade de itens na caixa':                    fmtInt(p['Comum · Qtd. itens na caixa']),
     'Como o pedido deve ser feito':                    'Peça',
     'Local de entrega':                                'Centro de distribuição e Lojas',
@@ -5778,7 +5871,9 @@ function mlVals(p) {
   const custoMl = (lote && lote.meli != null)
     ? lote.meli.toFixed(2)
     : (p['Comum · Custo Brasil (R$)'] != null ? Number(p['Comum · Custo Brasil (R$)']).toFixed(2) : pr);
-  const precoSug = price(p['Comum · Preço sugerido ao consumidor (R$)'], '0');  // sem markup pro retail
+  const precoSug = (lote && lote.preco_sugerido != null)
+    ? lote.preco_sugerido.toFixed(2)
+    : price(p['Comum · Preço sugerido ao consumidor (R$)'], '0');
   const imgs = ['Comum · URL Imagem Principal','Comum · URL Imagem 2','Comum · URL Imagem 3','Comum · URL Imagem 4','Comum · URL Imagem 5']
     .map(k => p[k]).filter(Boolean).join(',');
   return {
@@ -5788,7 +5883,7 @@ function mlVals(p) {
     'IDENTIFICATIONS-GTIN':                fmtEan(p['Comum · EAN / GTIN (embalagem unit)']),
     'TAX-COUNTRY_OF_ORIGIN':               p['Comum · País de origem'] || 'China',
     'TAX-STATE_OF_ORIGIN':                 p['Comum · Estado de origem'] || 'São Paulo',
-    'TAX-ORIGIN_TYPE':                     p['Comum · Tipo de origem'] || 'Comum · Fabricante',
+    'TAX-ORIGIN_TYPE':                     p['Comum · Tipo de origem'] || 'Fabricante',
     'TAX-PRODUCTION_TYPE':                 '2 - Estrangeira - Adquirida no mercado interno, exceto a indicada no código 3, 8',  // Ryan ML guide override
     'TAX-NCM':                             p['Comum · NCM'] || '9503.00.99',
     'TAX-CEST':                            p['Comum · CEST'] || '00.000.00',
@@ -5803,13 +5898,13 @@ function mlVals(p) {
     'VARIATIONS-COLOR':                    normalizeColor(p['Comum · Cor (se houver variação)']),
     'VARIATIONS-PICTURES':                 imgs,
     'IDENTIFICATIONS-PICTURES':            imgs,
-    'BUYING_TERMS-REPLENISHABLE':          'Não',  // Ryan ML guide
+    'BUYING_TERMS-REPLENISHABLE':          'Sim',  // Hasbro 1P: sempre reabastecível
     'BUYING_TERMS-MINIMUM_AMOUNT_OF_PURCHASE': '1',
     'BUYING_TERMS-ORDER_MULTIPLE':         '1',
-    'BILLING-FORMAT':                      'Kit',
+    'BILLING-FORMAT':                      'Unidade individual',
     'BILLING-UNITS':                       '1',
     'TECH-MANUFACTURER':                   p['Comum · Fabricante'],
-    'TECH-DESCRIPTION':                    cut(p['Comum · Descrição E-commerce'], 500),
+    'TECH-DESCRIPTION':                    cut(p['Comum · Descrição E-commerce'], 4000),
     'TECH-MODEL':                          p['Comum · Número do modelo (part num)'],
     'TECH-CHARACTER':                      p['Comum · Personagem / Linha'],
     'TECH-MATERIALS':                      p['Comum · Material'],
@@ -5821,29 +5916,29 @@ function mlVals(p) {
     'TECH-IS_ARTICULATED':                 p['Mercado Livre · Figura articulada? (S/N)'] || 'Não',
     'TECH-IS_COLLECTIBLE':                 p['Mercado Livre · É colecionável? (S/N)'] || 'Não',
     'TECH-INCLUDES_ACCESSORIES':           p['Mercado Livre · Inclui acessórios? (S/N)'] || 'Não',
-    'TECH-INCLUDES_LAUCHER':               p['Ri Happy · Mecanismo (piões)'] ? 'Sim' : 'Não',
+    'TECH-INCLUDES_LAUNCHER':              p['Ri Happy · Mecanismo (piões)'] ? 'Sim' : 'Não',
     'TECH-HEIGHT':                         fmtNum(p['Comum · Altura embalagem unit. (cm)'], 2),
     'TECH-HEIGHT-UNIT':                    'cm',
     'TECH-WIDTH':                          fmtNum(p['Comum · Largura embalagem unit. (cm)'], 2),
     'TECH-WIDTH-UNIT':                     'cm',
-    'TECH-DEPTH':                          p['Comum · Prof. embalagem unit. (cm)'],
+    'TECH-DEPTH':                          fmtNum(p['Comum · Prof. embalagem unit. (cm)'], 2),
     'TECH-DEPTH-UNIT':                     'cm',
     'TECH-WEIGHT':                         fmtNum(p['Comum · Peso bruto unit. (kg)'], 3),
     'TECH-WEIGHT-UNIT':                    'kg',
     'TECH-MIN_RECOMMENDED_AGE':            p['Comum · Idade mínima recomendada (meses)'],
     'TECH-MIN_RECOMMENDED_AGE-UNIT':       'meses',
-    'TECH-MAX_RECOMMENDED_AGE':            '1440',  // 120 anos — sem limite máximo prático
+    'TECH-MAX_RECOMMENDED_AGE':            p['Comum · Idade máxima recomendada (meses)'] || '1440',
     'TECH-MAX_RECOMMENDED_AGE-UNIT':       'meses',
     'TECH-RECOMMENDED_AGE_GROUP':          ageGroup(p['Comum · Idade mínima recomendada (meses)']),
     // Fonte do produto + país de origem (3 chaves pra cobrir variantes do template ML)
     'OTHER-PRODUCT_DATA_SOURCE':           'Manual',
-    'MAIN-COUNTRY_OF_ORIGIN':              p['Comum · País de origem'] || 'China',
-    'TECH-COUNTRY_OF_ORIGIN':              p['Comum · País de origem'] || 'China',
+    'MAIN-COUNTRY_OF_ORIGIN':              (!isNaN(p['Comum · País de origem']) && p['Comum · País de origem'] !== '' && p['Comum · País de origem'] != null) ? 'China' : (p['Comum · País de origem'] || 'China'),
+    'TECH-COUNTRY_OF_ORIGIN':              (!isNaN(p['Comum · País de origem']) && p['Comum · País de origem'] !== '' && p['Comum · País de origem'] != null) ? 'China' : (p['Comum · País de origem'] || 'China'),
     'OTHER-SELLER_PACKAGE_WIDTH':          fmtNum(p['Comum · Largura embalagem unit. (cm)'], 2),
     'OTHER-SELLER_PACKAGE_LENGTH':         fmtNum(p['Comum · Prof. embalagem unit. (cm)'], 2),
     'OTHER-SELLER_PACKAGE_HEIGHT':         fmtNum(p['Comum · Altura embalagem unit. (cm)'], 2),
     'OTHER-SELLER_PACKAGE_WEIGHT':         fmtNum(p['Comum · Peso bruto unit. (kg)'], 3),
-    'OTHER-IS_KIT':                        'Sim',
+    'OTHER-IS_KIT':                        (function(){ const lote = loteFor(p); return (lote && lote.e_kit != null) ? (lote.e_kit ? 'Sim' : 'Não') : 'Não'; })(),
     'OTHER-LICENSE':                       normalizeBrand(p['Comum · Marca / Licença']),
     'OTHER-MODEL':                         p['Comum · Número do modelo (part num)'],
   };
@@ -5906,7 +6001,7 @@ function rhVals(sheet, p) {
       'REFERÊNCIA DO PRODUTO': ref,
       // v50: CSTs resolvidos p/ "label - {hash}" (antes texto cru sem hash → rejeição)
       'ORIGEM CST':            resolveEnum(p['Comum · Tipo de produção (CST origem)'] || '1', RH_CST.origem, true),
-      'Comum · NCM':                   (p['Comum · NCM']||'95030099').replace(/\./g,''),
+      'NCM':                   (p['Comum · NCM']||'95030099').replace(/\./g,''),
       'IPI SAIDA':             p['Comum · IPI saída (%)'] || '6.5',
       'BASE IPI SAIDA':        p['Ri Happy · Base IPI (%)'] || '100',
       'CST IPI SAIDA':         resolveEnum(p['Comum · CST IPI saída'] || '50', RH_CST.ipi, true),
@@ -5947,7 +6042,9 @@ function rhVals(sheet, p) {
       };
     })(),
     'Dados Especificos': (function(){
-      const subRaw   = p['Ri Happy · Subnível'] || '';
+      const subRaw   = p['Ri Happy · Subnível']
+                    || AMZ_TO_RH_SUB[p['Amazon · Tipo (product_type)']]
+                    || '';
       const required = rhAttrsFor(subRaw);                 // atributos que ESTE subnível exige
       const meses    = p['Comum · Idade mínima recomendada (meses)'];
       // candidatos: todo valor que sabemos derivar/analisar
@@ -5965,7 +6062,7 @@ function rhVals(sheet, p) {
         'MATERIAL':                      normalizeMaterial(p['Comum · Material']),
         'TIPO DE PILHA':                 p['Comum · Tipo de pilha'] || '',
         'UTILIZA PILHAS?':               (p['Comum · Tipo de pilha'] || p['Amazon · Baterias necessárias?']) ? 'Sim' : 'Não',
-        'ACOMPANHA PILHAS?':             'Não',
+        'ACOMPANHA PILHAS?':             (function(){ const _lote = loteFor(p); return (_lote && _lote.acompanha_pilhas) ? 'Sim' : 'Não'; })(),
         'CAPACIDADE':                    p['Ri Happy · Capacidade'] || '',
         'ALCANCE':                       p['Ri Happy · Alcance'] || '',
         'TIPOS DE DARDOS':               p['Mercado Livre · Tipo de arma brinquedo'] || '',
@@ -6122,6 +6219,7 @@ async function genAmz(prods) {
       }
       if (fb) {
         console.warn(`Modelo-${t} ausente; redirecionando ${p['Comum · SKU / Ref. Fornecedor']} para Modelo-${fb}`);
+        toast(`SKU ${p['Comum · SKU / Ref. Fornecedor']}: categoria Modelo-${t} ausente → redirecionado para Modelo-${fb}`, 'warn');
         t = fb;
       }
     }
@@ -6230,7 +6328,7 @@ async function genAme(prods) {
 function buildFallbackAme(prods) {
   const wb2 = XLSX.utils.book_new();
   // Use the ordered headers Americanas expects in row 2
-  const H1 = ['CNPJ do Fornecedor','Natureza do item','Data de lançamento\nDD/MM/AAAA','EAN ou ISBN','Código do Fornecedor para o item','Nome do item para etiqueta de loja -  Até 40 caracteres','Nome do item para o site -  \nAté 100 caracteres','Descrição do item para o site - Até 2000 caracteres','Identificador','Qtde. dígitos núm. série','Item vendido separadamente?','Garantia do fornecedor?','Quantos meses de garantia?','Item frágil?','Item perecível?','Controle de validade','Prazo de validade em dias','Comum · Fabricante','Comum · Voltagem','Unidade de venda do produto','Peso bruto (Kg)','Peso líquido (Kg)','Altura (cm)','Profundidade (cm)','Largura (cm)','EAN da caixa de compra','Quantidade de itens na caixa','Peso bruto (Kg)','Altura (cm)','Profundidade (cm)','Largura (cm)','EAN da caixa intermediária','Quantidade de itens na caixa','Peso bruto (Kg)','Altura\n(cm)','Profundidade (cm)','Largura\n (cm)','Como o pedido deve ser feito','Local de entrega','Preço NF -BA','Lead Time - BA','Preço NF -CE','Lead Time - CE','Preço NF -DF','Lead Time - DF','Preço NF -ES','Lead Time - ES','Preço NF -MG','Lead Time - MG','Preço NF -PA','Lead Time - PA','Preço NF -PE','Lead Time - PE','Preço NF -PR','Lead Time - PR','Preço NF -RJ','Lead Time - RJ','Preço NF -RS','Lead Time - RS','Preço NF -SP','Lead Time - SP','Tipo do Fornecedor','Origem do Material'];
+  const H1 = ['CNPJ do Fornecedor','Natureza do item','Data de lançamento\nDD/MM/AAAA','EAN ou ISBN','Código do Fornecedor para o item','Nome do item para etiqueta de loja -  Até 40 caracteres','Nome do item para o site -  \nAté 100 caracteres','Descrição do item para o site - Até 2000 caracteres','Identificador','Qtde. dígitos núm. série','Item vendido separadamente?','Garantia do fornecedor?','Quantos meses de garantia?','Item frágil?','Item perecível?','Controle de validade','Prazo de validade em dias','Comum · Fabricante','Comum · Voltagem','Unidade de venda do produto','Peso bruto (Kg)','Peso líquido (Kg)','Altura (cm)','Profundidade (cm)','Largura (cm)','EAN da caixa de compra','Quantidade de itens na caixa','Peso bruto (Kg)','Altura (cm)','Profundidade (cm)','Largura (cm)','EAN da caixa intermediária','Quantidade de itens na caixa','Peso bruto (Kg)','Altura\n(cm)','Profundidade (cm)','Largura\n (cm)','Como o pedido deve ser feito','Local de entrega','Preço NF -AM','Lead Time - AM','Preço NF -AC','Lead Time - AC','Preço NF -AP','Lead Time - AP','Preço NF -RO','Lead Time - RO','Preço NF -RR','Lead Time - RR','Preço NF -TO','Lead Time - TO','Preço NF -MA','Lead Time - MA','Preço NF -PI','Lead Time - PI','Preço NF -RN','Lead Time - RN','Preço NF -PB','Lead Time - PB','Preço NF -SE','Lead Time - SE','Preço NF -AL','Lead Time - AL','Preço NF -GO','Lead Time - GO','Preço NF -MS','Lead Time - MS','Preço NF -MT','Lead Time - MT','Preço NF -SC','Lead Time - SC','Preço NF -BA','Lead Time - BA','Preço NF -CE','Lead Time - CE','Preço NF -DF','Lead Time - DF','Preço NF -ES','Lead Time - ES','Preço NF -MG','Lead Time - MG','Preço NF -PA','Lead Time - PA','Preço NF -PE','Lead Time - PE','Preço NF -PR','Lead Time - PR','Preço NF -RJ','Lead Time - RJ','Preço NF -RS','Lead Time - RS','Preço NF -SP','Lead Time - SP','Tipo do Fornecedor','Origem do Material'];
   const rows = [H1, ...prods.map(p => {
     const v = ameVals(p);
     return H1.map(k => v[k] !== undefined ? String(v[k]) : '');
@@ -6322,7 +6420,7 @@ async function genMl(prods) {
 
 function buildFallbackMl(byCat) {
   const wb2 = XLSX.utils.book_new();
-  const fieldKeys = ['MAIN-TITLE','MAIN-VENDOR_SKU','VARIATIONS-GTIN','TAX-COUNTRY_OF_ORIGIN','TAX-STATE_OF_ORIGIN','TAX-ORIGIN_TYPE','TAX-PRODUCTION_TYPE','TAX-NCM','TAX-CEST','TAX-IPI','TAX-ICMS','TAX-PIS','TAX-COFINS','BUYING_TERMS-UNIT_PRICE','BUYING_TERMS-SUGGESTED_RETAIL_PRICE','TECH-BRAND','MAIN-BRANCH_ID','VARIATIONS-PICTURES','BUYING_TERMS-REPLENISHABLE','BUYING_TERMS-MINIMUM_AMOUNT_OF_PURCHASE','BUYING_TERMS-ORDER_MULTIPLE','BILLING-FORMAT','BILLING-UNITS','TECH-MANUFACTURER','TECH-DESCRIPTION','TECH-MODEL','TECH-CHARACTER','TECH-MATERIALS','TECH-WITH_LIGHTS','TECH-WITH_SOUND','TECH-MIN_RECOMMENDED_AGE','TECH-MIN_RECOMMENDED_AGE-UNIT','TECH-RECOMMENDED_AGE_GROUP','OTHER-SELLER_PACKAGE_WIDTH','OTHER-SELLER_PACKAGE_LENGTH','OTHER-SELLER_PACKAGE_HEIGHT','OTHER-SELLER_PACKAGE_WEIGHT','OTHER-IS_KIT'];
+  const fieldKeys = ['MAIN-TITLE','MAIN-VENDOR_SKU','VARIATIONS-GTIN','IDENTIFICATIONS-GTIN','TAX-COUNTRY_OF_ORIGIN','TAX-STATE_OF_ORIGIN','TAX-ORIGIN_TYPE','TAX-PRODUCTION_TYPE','TAX-NCM','TAX-CEST','TAX-IPI','TAX-ICMS','TAX-PIS','TAX-COFINS','BUYING_TERMS-UNIT_PRICE','BUYING_TERMS-SUGGESTED_RETAIL_PRICE','TECH-BRAND','MAIN-BRANCH_ID','VARIATIONS-PICTURES','IDENTIFICATIONS-PICTURES','BUYING_TERMS-REPLENISHABLE','BUYING_TERMS-MINIMUM_AMOUNT_OF_PURCHASE','BUYING_TERMS-ORDER_MULTIPLE','BILLING-FORMAT','BILLING-UNITS','TECH-MANUFACTURER','TECH-DESCRIPTION','TECH-MODEL','TECH-CHARACTER','TECH-MATERIALS','TECH-WITH_LIGHTS','TECH-WITH_SOUND','TECH-MIN_RECOMMENDED_AGE','TECH-MIN_RECOMMENDED_AGE-UNIT','TECH-MAX_RECOMMENDED_AGE','TECH-MAX_RECOMMENDED_AGE-UNIT','TECH-RECOMMENDED_AGE_GROUP','TECH-HEIGHT','TECH-HEIGHT-UNIT','TECH-WIDTH','TECH-WIDTH-UNIT','TECH-DEPTH','TECH-DEPTH-UNIT','TECH-WEIGHT','TECH-WEIGHT-UNIT','MAIN-COUNTRY_OF_ORIGIN','TECH-COUNTRY_OF_ORIGIN','VARIATIONS-COLOR','OTHER-LICENSE','OTHER-MODEL','OTHER-SELLER_PACKAGE_WIDTH','OTHER-SELLER_PACKAGE_LENGTH','OTHER-SELLER_PACKAGE_HEIGHT','OTHER-SELLER_PACKAGE_WEIGHT','OTHER-IS_KIT','TECH-INCLUDES_LAUNCHER'];
   Object.entries(byCat).forEach(([cat, grp]) => {
     const rows = [fieldKeys, ...grp.map(p => {
       const v = mlVals(p);
@@ -7361,6 +7459,97 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<td${cls}>${v}</td>`;
     }).join('') + '</tr>'
   ).join('');
+
+  // ── Relatório de Alterações ──────────────────────────────
+  const CHANGELOG = [
+    {
+      ts: '24/06/2026 · 14:00',
+      autor: 'gustavo.viana@mindgruve.com',
+      canal: 'Ri Happy',
+      tipo: 'bug',
+      desc: 'RH_BRAND_HASH incompleto — adicionadas 12 marcas (AVENGERS, NERF, MARVEL, TRANSFORMERS, PLAY-DOH, BEYBLADE, STAR WARS, BABY ALIVE, FURBY, PLAYSKOOL, HARRY POTTER, PEPPA PIG). Todas as marcas licenciadas saíam como "SEM LICENÇA".',
+      loc: 'index.html · linha 4263'
+    },
+    {
+      ts: '24/06/2026 · 14:00',
+      autor: 'gustavo.viana@mindgruve.com',
+      canal: 'Ri Happy',
+      tipo: 'bug',
+      desc: 'NCM — corrigida chave errada no objeto Dados Fiscais. Estava \'Comum · NCM\' (chave CRIS); correto é \'NCM\' (cabeçalho do template RH). Campo estava vazio em 100% dos produtos.',
+      loc: 'index.html · linha 5909'
+    },
+    {
+      ts: '24/06/2026 · 14:00',
+      autor: 'gustavo.viana@mindgruve.com',
+      canal: 'Ri Happy',
+      tipo: 'bug',
+      desc: 'SUBNÍVEL — adicionada auto-derivação via AMZ_TO_RH_SUB a partir do tipo Amazon quando a CRIS não tem o campo preenchido. Cobre TOY_FIGURE, BOARD_GAME, SPINNING_TOY_TOP, TOY_GUN, HOBBIES e mais 8 tipos.',
+      loc: 'index.html · linha 5950 + 4345'
+    },
+    {
+      ts: '24/06/2026 · 14:00',
+      autor: 'gustavo.viana@mindgruve.com',
+      canal: 'Ri Happy',
+      tipo: 'bug',
+      desc: 'BRAND_NORMALIZATION — alias \'BEY BLADE\' → \'BEYBLADE\' descomentado. Adicionados: MARVEL SUPER HEROES → MARVEL, STAR WARS REBELS → STAR WARS, AVENGERS ASSEMBLE → AVENGERS.',
+      loc: 'index.html · linha 4034'
+    },
+    {
+      ts: '24/06/2026 · 14:00',
+      autor: 'gustavo.viana@mindgruve.com',
+      canal: 'Ri Happy',
+      tipo: 'feature',
+      desc: 'RH_SUBNIVEL_HASH atualizado — adicionados: ACTION FIGURE ARTICULADO, ACTION FIGURE DE ANIMAÇÕES, JOGOS DE MESA, MONTAGEM E MODELISMO, MASSINHA DE MODELAR, PIÕES com hashes extraídos do INDICE_DadosEspecifico do template oficial.',
+      loc: 'index.html · linha 4308'
+    },
+    {
+      ts: '24/06/2026 · 14:00',
+      autor: 'gustavo.viana@mindgruve.com',
+      canal: 'Plataforma',
+      tipo: 'feature',
+      desc: 'Aba "Relatório de Alterações" criada no menu lateral. Exibe histórico completo de correções com filtro por tipo (bug fix / melhoria) e por canal (Ri Happy, etc.).',
+      loc: 'index.html · linha 3085'
+    }
+  ];
+
+  function relFilter(btn, filter) {
+    document.querySelectorAll('#rel-filtros .fbtn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    renderChangelog(filter);
+  }
+
+  function renderChangelog(filter) {
+    const data = filter === 'all' ? CHANGELOG
+      : CHANGELOG.filter(r => {
+          if (filter === 'rihappy')  return r.canal === 'Ri Happy';
+          if (filter === 'bug')      return r.tipo === 'bug';
+          if (filter === 'feature')  return r.tipo === 'feature';
+          return true;
+        });
+
+    const typeColors = { bug: '#f04d5e', feature: '#7c8bff' };
+    const typeLabels = { bug: '🐛 Bug fix', feature: '✨ Melhoria' };
+    const canalColors = { 'Ri Happy': '#e8334a', 'Plataforma': '#7c8bff' };
+
+    document.getElementById('rel-tbody').innerHTML = data.map(r => `
+      <tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:11px 14px;font-family:var(--mono);font-size:11.5px;color:var(--paper-40);white-space:nowrap;vertical-align:top">${r.ts}</td>
+        <td style="padding:11px 14px;font-family:var(--mono);font-size:11.5px;color:var(--paper-60);vertical-align:top;white-space:nowrap">${r.autor}</td>
+        <td style="padding:11px 14px;vertical-align:top">
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.06em;background:${(canalColors[r.canal]||'#888')}22;color:${canalColors[r.canal]||'#888'};border:1px solid ${(canalColors[r.canal]||'#888')}44">${r.canal}</span>
+        </td>
+        <td style="padding:11px 14px;vertical-align:top">
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${(typeColors[r.tipo]||'#888')}22;color:${typeColors[r.tipo]||'#888'};border:1px solid ${(typeColors[r.tipo]||'#888')}44">${typeLabels[r.tipo]||r.tipo}</span>
+        </td>
+        <td style="padding:11px 14px;font-size:12.5px;color:var(--paper-80);line-height:1.65;vertical-align:top">${r.desc}</td>
+        <td style="padding:11px 14px;font-family:var(--mono);font-size:11px;color:var(--paper-40);vertical-align:top;white-space:nowrap">${r.loc}</td>
+      </tr>
+    `).join('');
+    document.getElementById('rel-count').textContent = `${data.length} registro${data.length !== 1 ? 's' : ''} · última atualização 24/06/2026`;
+  }
+
+  renderChangelog('all');
+  window.relFilter = relFilter;
 });
 
 // ═══════════════════════════════════════════════════════════
