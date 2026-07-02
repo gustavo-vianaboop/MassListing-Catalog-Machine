@@ -5747,7 +5747,7 @@ function amzVals(p, tipo) {
     // ── SEGURANÇA / BATERIA ──────────────────────────────────────
     'rtip_safety_warning#1.value':                     'PRODUTOS E CORES PODEM VARIAR DAQUELES APRESENTADOS NA EMBALAGEM. CONSULTE INSTRUÇÕES DE USO.',
     'batteries_required#1.value':                      p['Amazon · Baterias necessárias?'] || 'Não',
-    'batteries_included#1.value':                      'Não',
+    'batteries_included#1.value':                      p['Amazon · Baterias necessárias?'] || 'Não',
     'has_multiple_battery_powered_components#1.value': 'Não',
     'power_source_type#1.value':                       powerSourceFor(p),
 
@@ -5830,7 +5830,7 @@ function amzVals(p, tipo) {
     extras['model_number#1.value']            = p['Comum · SKU / Ref. Fornecedor'] || '';  // model_number obrigatório em COSTUME_MASK
   }
 
-  baseVals['unit_count_type#1.value'] = 'Unidade';
+  baseVals['unit_count_type#1.value'] = 'Unidade individual';
   return Object.assign(baseVals, extras);
 }
 
@@ -5993,7 +5993,7 @@ function mlVals(p) {
     'TECH-WEIGHT-UNIT':                    'kg',
     'TECH-MIN_RECOMMENDED_AGE':            p['Comum · Idade mínima recomendada (meses)'],
     'TECH-MIN_RECOMMENDED_AGE-UNIT':       'meses',
-    'TECH-MAX_RECOMMENDED_AGE':            p['Comum · Idade máxima recomendada (meses)'] || '1440',
+    'TECH-MAX_RECOMMENDED_AGE':            '1440',
     'TECH-MAX_RECOMMENDED_AGE-UNIT':       'meses',
     'TECH-RECOMMENDED_AGE_GROUP':          ageGroup(p['Comum · Idade mínima recomendada (meses)']),
     // Fonte do produto + país de origem (3 chaves pra cobrir variantes do template ML)
