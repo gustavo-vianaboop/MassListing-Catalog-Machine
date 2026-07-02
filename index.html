@@ -5165,6 +5165,15 @@ function loteNum(v) {
   return isNaN(n) ? null : n;
 }
 
+// v28: helper — resolve índice de coluna pelo cabeçalho normalizado; fallback ao índice fixo
+function colOrIdx(hdr, names, fallback) {
+  for (const n of names) {
+    const idx = hdr.indexOf(stripAccents(n).toUpperCase());
+    if (idx >= 0) return idx;
+  }
+  return fallback;
+}
+
 async function parseLoteFile(file) {
   const buf = await file.arrayBuffer();
   const wb2 = XLSX.read(new Uint8Array(buf), { type: 'array' });
@@ -5177,23 +5186,76 @@ async function parseLoteFile(file) {
     ws['!ref'] = XLSX.utils.encode_range(_r);
   }
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, range: ws['!ref'] });
+  if (rows.length < 2) return 0;
+
+  // v28: leitura por cabeçalho — robusto a mudanças de coluna no LOTE
+  const hdr = (rows[0] || []).map(h => stripAccents(String(h || '').trim()).toUpperCase());
+  const C = {
+    skuShort:   colOrIdx(hdr, ['SKU','COD','CODIGO','REF','SKU CURTO'], 1),
+    skuFull:    colOrIdx(hdr, ['SKU COMPLETO','SKU FULL','REFERENCIA COMPLETA','REF COMPLETA'], 2),
+    rhGeral:    colOrIdx(hdr, ['RH GERAL','RH','PRECO RH','CUSTO RH','CUSTO RH GERAL'], 13),
+    rhMg:       colOrIdx(hdr, ['RH MG','RH MINAS','CUSTO RH MG'], 14),
+    rhAm:       colOrIdx(hdr, ['RH AM','RH AMAZONIA','CUSTO RH AM'], 15),
+    lasaGeral:  colOrIdx(hdr, ['LASA GERAL','LASA','AME GERAL','CUSTO LASA','AMERICANAS GERAL'], 23),
+    lasaMg:     colOrIdx(hdr, ['LASA MG','AME MG','AMERICANAS MG'], 24),
+    lasaAm:     colOrIdx(hdr, ['LASA AM','AME AM','AMERICANAS AM'], 25),
+    meli:       colOrIdx(hdr, ['ML','MELI','MERCADO LIVRE','CUSTO ML','CUSTO MELI'], 27),
+    amzO4yza:   colOrIdx(hdr, ['AMZ O4YZA','O4YZA','AMZ VENDOR 1','AMZ 1','AMZ PRINCIPAL'], 29),
+    amzJh6rm:   colOrIdx(hdr, ['AMZ JH6RM','JH6RM','AMZ VENDOR 2','AMZ 2'], 30),
+    amzI020x:   colOrIdx(hdr, ['AMZ I020X','I020X','AMZ VENDOR 3','AMZ 3','I020X CUSTO'], -1),
+    precoSug:   colOrIdx(hdr, ['PRECO SUGERIDO','PRECO SUG','PVP','PRECO CONSUMIDOR','SUGERIDO'], 33),
+    eKit:       colOrIdx(hdr, ['E KIT','EH KIT','KIT','IS KIT','PRODUTO KIT','E_KIT'], -1),
+    pilhas:     colOrIdx(hdr, ['ACOMPANHA PILHAS','PILHAS','INCLUI PILHAS','COM PILHAS'], -1),
+    statusAmz:  colOrIdx(hdr, ['STATUS AMZ','AMZ STATUS','CADASTRAR AMZ','STATUS AMAZON'], -1),
+    statusMl:   colOrIdx(hdr, ['STATUS ML','ML STATUS','CADASTRAR ML','STATUS MELI'], -1),
+    statusRh:   colOrIdx(hdr, ['STATUS RH','RH STATUS','CADASTRAR RH','STATUS RI HAPPY'], -1),
+    statusLasa: colOrIdx(hdr, ['STATUS LASA','LASA STATUS','STATUS AME','CADASTRAR LASA','STATUS AMERICANAS'], -1),
+    tituloAmz:  colOrIdx(hdr, ['TITULO AMZ','TITLE AMZ','TITULO AMAZON','NOME AMZ','NOME AMAZON','TITULO 120'], -1),
+    tituloMl:   colOrIdx(hdr, ['TITULO ML','TITLE ML','TITULO MELI','NOME ML','TITULO 60'], -1),
+    descAmz:    colOrIdx(hdr, ['DESCRICAO AMZ','DESC AMZ','DESCRIPTION AMZ','DESCRICAO AMAZON'], -1),
+    bullet1:    colOrIdx(hdr, ['BULLET 1','BULLET1','VANTAGEM 1','ITEM 1','B1'], -1),
+    bullet2:    colOrIdx(hdr, ['BULLET 2','BULLET2','VANTAGEM 2','ITEM 2','B2'], -1),
+    bullet3:    colOrIdx(hdr, ['BULLET 3','BULLET3','VANTAGEM 3','ITEM 3','B3'], -1),
+    bullet4:    colOrIdx(hdr, ['BULLET 4','BULLET4','VANTAGEM 4','ITEM 4','B4'], -1),
+    bullet5:    colOrIdx(hdr, ['BULLET 5','BULLET5','VANTAGEM 5','ITEM 5','B5'], -1),
+  };
+
+  const get       = (row, idx) => idx >= 0 ? row[idx] : null;
+  const getBool   = (row, idx) => { const v = get(row, idx); if (v == null) return null; return /sim|yes|s|1|true/i.test(String(v).trim()); };
+  const getStr    = (row, idx) => { const v = get(row, idx); return (v != null && String(v).trim()) ? String(v).trim() : null; };
+  const getStatus = (row, idx) => { const v = get(row, idx); if (v == null) return true; return !/nao|não|n|0|false|no/i.test(String(v).trim()); };
+
   let count = 0;
-  // Skip r0 (header). Data starts r1.
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length < 4) continue;
-    // Excel c2 → JS idx 1 (com header(r1) já consumido)
-    const skuShort = String(row[1] || '').trim();
-    const skuFull  = String(row[2] || '').trim();
-    if (!skuShort && !skuFull) continue;
-    const key = skuShort || skuFull.substring(0, 5);
+    const skuSh = String(get(row, C.skuShort) || '').trim();
+    const skuFu = String(get(row, C.skuFull)  || '').trim();
+    if (!skuSh && !skuFu) continue;
+    const key = skuSh || skuFu.substring(0, 5);
     if (!key || key.length < 3) continue;
+
+    const bullets = [C.bullet1,C.bullet2,C.bullet3,C.bullet4,C.bullet5]
+      .map(ci => getStr(row, ci)).filter(Boolean);
+
     const entry = {
-      rh:   { geral: loteNum(row[13]), mg: loteNum(row[14]), am: loteNum(row[15]) },
-      lasa: { geral: loteNum(row[23]), mg: loteNum(row[24]), am: loteNum(row[25]) },
-      meli: loteNum(row[27]),
-      amz:  { o4yza: loteNum(row[29]), jh6rm: loteNum(row[30]) },
-      preco_sugerido: loteNum(row[33])
+      rh:   { geral: loteNum(get(row,C.rhGeral)), mg: loteNum(get(row,C.rhMg)), am: loteNum(get(row,C.rhAm)) },
+      lasa: { geral: loteNum(get(row,C.lasaGeral)), mg: loteNum(get(row,C.lasaMg)), am: loteNum(get(row,C.lasaAm)) },
+      meli: loteNum(get(row,C.meli)),
+      amz:  { o4yza: loteNum(get(row,C.amzO4yza)), jh6rm: loteNum(get(row,C.amzJh6rm)), i020x: loteNum(get(row,C.amzI020x)) },
+      preco_sugerido:   loteNum(get(row,C.precoSug)),
+      e_kit:            getBool(row, C.eKit),
+      acompanha_pilhas: getBool(row, C.pilhas),
+      status: {
+        amz:  getStatus(row, C.statusAmz),
+        ml:   getStatus(row, C.statusMl),
+        rh:   getStatus(row, C.statusRh),
+        lasa: getStatus(row, C.statusLasa),
+      },
+      titulo_amz: getStr(row, C.tituloAmz),
+      titulo_ml:  getStr(row, C.tituloMl),
+      desc_amz:   getStr(row, C.descAmz),
+      bullets:    bullets,
     };
     const hasCost = entry.rh.geral || entry.lasa.geral || entry.meli || entry.amz.o4yza || entry.rh.mg || entry.lasa.mg;
     if (hasCost) {
@@ -5564,6 +5626,10 @@ function amzVals(p, tipo) {
   const inmetro = (p['Ri Happy · Código INMETRO'] || p['Comum · Certificação INMETRO'] || '').trim();
   const gender  = p['Comum · Gênero'] || '';
   const componentes = p['Comum · Componentes incluídos'] || '';
+  // v28: bullets preferem LOTE (curado por canal), fallback para colunas da Planilha Chris
+  const bul = (lote && lote.bullets && lote.bullets.length)
+    ? lote.bullets
+    : [p['Amazon · Tópico 1 (bullet)'],p['Amazon · Tópico 2'],p['Amazon · Tópico 3'],p['Amazon · Tópico 4'],p['Amazon · Tópico 5']];
 
   const baseVals = {
     // ── IDENTIDADE DA OFERTA ─────────────────────────────────────
@@ -5572,7 +5638,7 @@ function amzVals(p, tipo) {
     'product_type#1.value':                            tipo,
 
     // ── IDENTIDADE DO PRODUTO ────────────────────────────────────
-    'item_name#1.value':                               AMZ_ITEM_NAME_OVERRIDE[skuShort(fullSku)] || AMZ_ITEM_NAME_OVERRIDE[fullSku] || cut(p['Comum · Nome do Produto (base)'], 200),
+    'item_name#1.value':                               AMZ_ITEM_NAME_OVERRIDE[skuShort(fullSku)] || AMZ_ITEM_NAME_OVERRIDE[fullSku] || (lote && lote.titulo_amz) || p['Amazon · Título (120 chars)'] || cut(p['Comum · Nome do Produto (base)'], 200),
     'brand#1.value':                                   normalizeBrand(p['Comum · Marca / Licença']),
     'external_product_id#1.type':                      'EAN',
     'external_product_id#1.value':                     normalizeEan(p['Comum · EAN / GTIN (embalagem unit)']),  // v8: força 13 dígitos
@@ -5606,14 +5672,14 @@ function amzVals(p, tipo) {
     'ncm_code#1.value':                                String(p['Comum · NCM']||'9503.00.99').replace(/\./g,''),
 
     // ── BULLETS ──────────────────────────────────────────────────
-    'bullet_point#1.value':                            p['Amazon · Tópico 1 (bullet)'],
-    'bullet_point#2.value':                            p['Amazon · Tópico 2'],
-    'bullet_point#3.value':                            p['Amazon · Tópico 3'],
-    'bullet_point#4.value':                            p['Amazon · Tópico 4'],
-    'bullet_point#5.value':                            p['Amazon · Tópico 5'],
+    'bullet_point#1.value':                            bul[0] || '',
+    'bullet_point#2.value':                            bul[1] || '',
+    'bullet_point#3.value':                            bul[2] || '',
+    'bullet_point#4.value':                            bul[3] || '',
+    'bullet_point#5.value':                            bul[4] || '',
 
     // ── DESCRIÇÃO ────────────────────────────────────────────────
-    'rtip_product_description#1.value':                p['Comum · Descrição E-commerce'],
+    'rtip_product_description#1.value':                (lote && lote.desc_amz) || p['Comum · Descrição E-commerce'],
     'generic_keywords#1.value':                        p['Comum · Palavras-chave busca'] || '',
 
     // ── CARACTERÍSTICAS ──────────────────────────────────────────
@@ -5877,7 +5943,7 @@ function mlVals(p) {
   const imgs = ['Comum · URL Imagem Principal','Comum · URL Imagem 2','Comum · URL Imagem 3','Comum · URL Imagem 4','Comum · URL Imagem 5']
     .map(k => p[k]).filter(Boolean).join(',');
   return {
-    'MAIN-TITLE':                          cut(p['Comum · Nome do Produto (base)'], 60),
+    'MAIN-TITLE':                          cut((lote && lote.titulo_ml) || p['Mercado Livre · Título (60 chars)'] || p['Comum · Nome do Produto (base)'], 60),
     'MAIN-VENDOR_SKU':                     skuShort(p['Comum · SKU / Ref. Fornecedor']),  // SKU reduzido (5 chars)
     'VARIATIONS-GTIN':                     fmtEan(p['Comum · EAN / GTIN (embalagem unit)']),
     'IDENTIFICATIONS-GTIN':                fmtEan(p['Comum · EAN / GTIN (embalagem unit)']),
@@ -6156,10 +6222,15 @@ const ELIG_COLS = {
 };
 function filterByEligibility(prods, key) {
   const col = ELIG_COLS[key];
+  const loteKey = { amazon: 'amz', americanas: 'lasa', ml: 'ml', rihappy: 'rh' }[key];
   return prods.filter(p => {
+    // 1. Planilha Chris "Cadastrar?" column
     const v = String(p[col] || '').trim().toLowerCase();
-    if (!v) return true;  // empty = include
-    return ['s','sim','y','yes','1','true'].includes(v);
+    if (v && !['s','sim','y','yes','1','true'].includes(v)) return false;
+    // 2. LOTE status override — se LOTE marca NÃO para este canal, exclui o SKU
+    const lt = loteFor(p);
+    if (lt && lt.status && loteKey && lt.status[loteKey] === false) return false;
+    return true;
   });
 }
 
@@ -6260,8 +6331,9 @@ async function genAmz(prods) {
           const lote = loteFor(p);
           let vCost = null;
           if (lote && lote.amz) {
-            if (vendor.id === 'O4YZA') vCost = lote.amz.o4yza;
-            else                       vCost = lote.amz.jh6rm;  // JH6RM e I020X compartilham
+            if (vendor.id === 'O4YZA')      vCost = lote.amz.o4yza;
+            else if (vendor.id === 'JH6RM') vCost = lote.amz.jh6rm;
+            else                             vCost = lote.amz.i020x != null ? lote.amz.i020x : lote.amz.jh6rm;  // I020X: custo próprio; fallback JH6RM
           }
           if (vCost == null || vCost === '' || isNaN(parseFloat(vCost))) {
             vCost = p[vendor.costCol];
