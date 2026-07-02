@@ -6169,6 +6169,9 @@ function rhVals(sheet, p) {
 // Convert a {headerName: value} map → {colIndex: value} using the analyzed header→col map
 function mapToCols(vals, headerToCol, headerToColNorm, headerColsNorm) {
   const out = {};
+  const usedCols = new Set();       // colunas já ocupadas por match exato/normalizado
+  const pending = [];                // keys sem match exato — resolvidas depois via partial-match
+
   Object.entries(vals).forEach(([k, v]) => {
     if (v === undefined || v === null || v === '') return;
     // v48.3: alvo posicional p/ headers duplicados.
@@ -6181,24 +6184,30 @@ function mapToCols(vals, headerToCol, headerToColNorm, headerColsNorm) {
       const hn = norm(occMatch[2]);
       const cols = (headerColsNorm && headerColsNorm[hn]) || [];
       const c = cols[n - 1];
-      if (c !== undefined) out[c] = v;
+      if (c !== undefined) { out[c] = v; usedCols.add(c); }
       return;
     }
     let c = headerToCol[k];
     if (c === undefined) c = headerToColNorm[norm(k)];
-    // Partial-match fallback: pra keys longas (>=10 chars normalizados), permite que
-    // o header do template contenha nossa key OU vice-versa. Evita falsos positivos
-    // de keys curtas (ex.: "EAN" matching qualquer coisa).
-    if (c === undefined) {
-      const nk = norm(k);
-      if (nk.length >= 10) {
-        for (const [hn, ci] of Object.entries(headerToColNorm)) {
-          if (hn.length >= 10 && (hn.includes(nk) || nk.includes(hn))) { c = ci; break; }
-        }
-      }
-    }
-    if (c !== undefined) out[c] = v;
+    if (c !== undefined) { out[c] = v; usedCols.add(c); }
+    else pending.push([k, v]);
   });
+
+  // Partial-match fallback: pra keys longas (>=10 chars normalizados), permite que
+  // o header do template contenha nossa key OU vice-versa. Evita falsos positivos
+  // de keys curtas (ex.: "EAN" matching qualquer coisa). Roda DEPOIS dos matches
+  // exatos/normalizados e nunca sobrescreve uma coluna já ocupada por eles — evita
+  // que uma key tipo "TECH-HEIGHT-UNIT" (sem coluna própria no template) roube a
+  // coluna de "TECH-HEIGHT" e substitua o número pelo texto da unidade.
+  pending.forEach(([k, v]) => {
+    const nk = norm(k);
+    if (nk.length < 10) return;
+    for (const [hn, ci] of Object.entries(headerToColNorm)) {
+      if (usedCols.has(ci)) continue;
+      if (hn.length >= 10 && (hn.includes(nk) || nk.includes(hn))) { out[ci] = v; usedCols.add(ci); break; }
+    }
+  });
+
   return out;
 }
 
