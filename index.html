@@ -5205,6 +5205,7 @@ async function parseLoteFile(file) {
     amzJh6rm:   colOrIdx(hdr, ['CUSTO AMAZON VENDORS JH6RM E I020X','AMZ JH6RM','JH6RM','AMZ VENDOR 2','AMZ 2'], 30),
     amzI020x:   colOrIdx(hdr, ['AMZ I020X','I020X','AMZ VENDOR 3','AMZ 3','I020X CUSTO'], -1),
     precoSug:   colOrIdx(hdr, ['PRECO SUGERIDO','PRECO SUG','PVP','PRECO CONSUMIDOR','SUGERIDO'], 33),
+    ncm:        colOrIdx(hdr, ['NCM'], -1),
     eKit:       colOrIdx(hdr, ['E KIT','EH KIT','KIT','IS KIT','PRODUTO KIT','E_KIT'], -1),
     pilhas:     colOrIdx(hdr, ['ACOMPANHA PILHAS','PILHAS','INCLUI PILHAS','COM PILHAS'], -1),
     statusAmz:  colOrIdx(hdr, ['STATUS AMZ','AMZ STATUS','CADASTRAR AMZ','STATUS AMAZON','AMAZON'], -1),
@@ -5245,6 +5246,7 @@ async function parseLoteFile(file) {
       meli: loteNum(get(row,C.meli)),
       amz:  { o4yza: loteNum(get(row,C.amzO4yza)), jh6rm: loteNum(get(row,C.amzJh6rm)), i020x: loteNum(get(row,C.amzI020x)) },
       preco_sugerido:   loteNum(get(row,C.precoSug)),
+      ncm:              getStr(row, C.ncm),
       e_kit:            getBool(row, C.eKit),
       acompanha_pilhas: getBool(row, C.pilhas),
       status: {
@@ -5670,7 +5672,7 @@ function amzVals(p, tipo) {
     'manufacturer#1.value':                            'Hasbro',
     'country_of_origin#1.value':                       (!isNaN(p['Comum · País de origem']) && p['Comum · País de origem'] !== '' && p['Comum · País de origem'] != null) ? 'China' : (p['Comum · País de origem'] || 'China'),
     'import_designation#1.value':                      importDesignationFor(p),
-    'ncm_code#1.value':                                String(p['Comum · NCM']||'9503.00.99').replace(/\./g,''),
+    'ncm_code#1.value':                                String((lote && lote.ncm) || p['Comum · NCM']||'9503.00.99').replace(/\./g,''),
 
     // ── BULLETS ──────────────────────────────────────────────────
     'bullet_point#1.value':                            bul[0] || '',
@@ -5952,7 +5954,7 @@ function mlVals(p) {
     'TAX-STATE_OF_ORIGIN':                 p['Comum · Estado de origem'] || 'São Paulo',
     'TAX-ORIGIN_TYPE':                     p['Comum · Tipo de origem'] || 'Fabricante',
     'TAX-PRODUCTION_TYPE':                 '2 - Estrangeira - Adquirida no mercado interno, exceto a indicada no código 3, 8',  // Ryan ML guide override
-    'TAX-NCM':                             p['Comum · NCM'] || '9503.00.99',
+    'TAX-NCM':                             (lote && lote.ncm) || p['Comum · NCM'] || '9503.00.99',
     'TAX-CEST':                            p['Comum · CEST'] || '00.000.00',
     'TAX-IPI':                             p['Comum · CST IPI saída'] || '50 - Saída tributada',
     'TAX-ICMS':                            p['Comum · ICMS (CST)'] || '00 - Tributada integralmente',
@@ -6012,6 +6014,7 @@ function mlVals(p) {
 }
 
 function rhVals(sheet, p) {
+  const lote = loteFor(p);
   const pr  = price(p['Comum · Preço sugerido ao consumidor (R$)'], p['Ri Happy · Markup (%)'] || p['Mercado Livre · Markup (%)']);
   const ref = p['Comum · SKU / Ref. Fornecedor'] || '';
   const maps = {
@@ -6068,7 +6071,7 @@ function rhVals(sheet, p) {
       'REFERÊNCIA DO PRODUTO': ref,
       // v50: CSTs resolvidos p/ "label - {hash}" (antes texto cru sem hash → rejeição)
       'ORIGEM CST':            resolveEnum(p['Comum · Tipo de produção (CST origem)'] || '1', RH_CST.origem, true),
-      'NCM':                   (p['Comum · NCM']||'95030099').replace(/\./g,''),
+      'NCM':                   String((lote && lote.ncm) || p['Comum · NCM']||'95030099').replace(/\./g,''),
       'IPI SAIDA':             p['Comum · IPI saída (%)'] || '6.5',
       'BASE IPI SAIDA':        p['Ri Happy · Base IPI (%)'] || '100',
       'CST IPI SAIDA':         resolveEnum(p['Comum · CST IPI saída'] || '50', RH_CST.ipi, true),
