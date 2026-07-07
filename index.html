@@ -4188,6 +4188,161 @@ const AMZ_MODEL_NUMBER_OVERRIDE = {
   'G4789': 'G47895L4',                                              // ASIN B0G2YNN87D
 };
 
+// v49: gera título comercial a partir do código interno Hasbro (ex: "SPD SAVAGE HULK
+// TALKN ELECTRONIC MASK" -> "Marvel Spider-Man Máscara Hulk"), seguindo o guia de
+// padronização por marca. Usa o campo estruturado Personagem/Linha como fonte do nome
+// do personagem (nunca extrai/infere personagem do texto abreviado, pra não inventar).
+// Marcas sem personagem de franquia (Baby Alive, Furby) usam o nome de linha do produto
+// extraído do próprio texto, pois ali o campo Personagem/Linha não se aplica.
+function tituloIsNA(v){ return isNA(v); }
+
+// remove o(s) primeiro(s) token(s) de marca e um token de "ruído" final (código de
+// variante tipo "BRNH", ou palavra já coberta pelo template como "FURBLET")
+function extrairNomeLinha(raw, brandTokens, noiseWords){
+  let tokens = clean(raw).split(/\s+/);
+  tokens = tokens.slice(brandTokens);
+  if (!tokens.length) return '';
+  const last = tokens[tokens.length-1];
+  const lastUp = last.toUpperCase();
+  if (noiseWords.includes(lastUp) || (tokens.length>1 && /^[A-Z]{2,6}$/.test(last) && last===lastUp)) {
+    tokens = tokens.slice(0,-1);
+  }
+  if (!tokens.length) return '';
+  return titleCase(tokens.join(' ').toLowerCase());
+}
+
+function gerarTituloComercial(raw, personagemRaw, cor, tipoAmz){
+  raw = clean(raw);
+  if (!raw) return raw;
+  const personagem = tituloIsNA(personagemRaw) ? '' : clean(personagemRaw);
+  const semPersonagem = !personagem;
+  const tokens = raw.split(/\s+/);
+  const first  = (tokens[0]  || '').toUpperCase();
+  const second = (tokens[1]  || '').toUpperCase();
+
+  const hasActionFx    = /ACTION\s*FX/i.test(raw);
+  const hasPowerCharge = /POWER.?CHARGE/i.test(raw);
+  const hasDeluxe      = /\bDELUXE\b|\bDLX\b/i.test(raw);
+  const hasRetro       = /\bRETRO\b/i.test(raw);
+  const hasTitanHero   = /TITAN\s*HERO/i.test(raw);
+  const packMatch      = raw.match(/(\d)[\s-]?PACK/i);
+
+  // G.I. Joe — "GIJ CS ..." -> G.I. Joe Classified Series Figura de Ação [Personagem]
+  if (first === 'GIJ') {
+    if (semPersonagem) return raw;
+    return `G.I. Joe Classified Series Figura de Ação ${personagem}`;
+  }
+
+  // Marvel Spider-Man
+  if (first === 'SPD') {
+    if (semPersonagem) return raw;
+    if (tipoAmz === 'COSTUME_MASK') return `Marvel Spider-Man Máscara ${personagem}`;
+    if (hasPowerCharge) return `Marvel Spider-Man Power Charge ${personagem}`;
+    if (hasActionFx) return `Marvel Spider-Man Action FX Figura de Ação ${personagem}`;
+    return `Marvel Spider-Man Figura de Ação ${personagem}`;
+  }
+
+  // Marvel Avengers
+  if (first === 'AVN') {
+    if (semPersonagem) return raw;
+    if (hasTitanHero && packMatch) return `Marvel Avengers Titan Hero ${packMatch[1]}-Pack ${personagem}`;
+    if (hasActionFx) return `Marvel Avengers Action FX Figura ${personagem}`;
+    return `Marvel Avengers Figura de Ação ${personagem}`;
+  }
+
+  // Beyblade X
+  if (first === 'BEY' || first === 'BBX') {
+    if (/CLIP.?N.?RIP/i.test(raw)) return 'Beyblade X Lançador Clip N Rip';
+    if (hasDeluxe && /CORD/i.test(raw)) return 'Beyblade X Lançador Deluxe de Corda com Empunhadura Customizável';
+    if (/ARENA/i.test(raw)) return semPersonagem ? raw : `Beyblade X Arena ${personagem}`;
+    return semPersonagem ? raw : `Beyblade X Pião ${personagem}`;
+  }
+
+  // Nerf
+  if (first === 'NER') {
+    if (semPersonagem) return raw;
+    if (/FORTNITE/i.test(raw)) return `Nerf Fortnite Lançador ${personagem}`;
+    if (/REBEL.?OPS/i.test(raw)) return `Nerf Rebel Ops Lançador ${personagem}`;
+    return `Nerf Lançador ${personagem}`;
+  }
+
+  // Monopoly
+  if (first === 'MONOPOLY') {
+    if (semPersonagem) return raw;
+    return /DEAL/i.test(raw) ? `Jogo Monopoly Deal ${personagem}` : `Jogo Monopoly ${personagem}`;
+  }
+
+  // Guess Who
+  if (/GUESS\s*WHO/i.test(raw)) {
+    if (semPersonagem) return raw;
+    return `Jogo Guess Who? ${personagem}`;
+  }
+
+  // Baby Alive — sem "personagem" de franquia; o nome da linha vem do próprio texto
+  if (first === 'BA') {
+    const nome = extrairNomeLinha(raw, 1, []);
+    if (!nome) return raw;
+    const isRoupa = /ROUPA|OUTFIT|CLOTHES|VESTIDO/i.test(raw);
+    if (isRoupa) return `Baby Alive ${nome} Conjunto de Roupas para Boneca`;
+    const corLimpa = tituloIsNA(cor) ? '' : clean(cor);
+    return corLimpa ? `Baby Alive ${nome} Boneca ${corLimpa}` : `Baby Alive ${nome} Boneca`;
+  }
+
+  // Furby — mesmo caso: Personagem/Linha não guarda o nome do Furblet
+  if (first === 'KDH') {
+    const nome = extrairNomeLinha(raw, 1, ['FURBLET','FURBLETS']);
+    if (!nome) return raw;
+    return `Furby Furblets ${nome}`;
+  }
+
+  // Star Wars
+  if (first === 'SW' && second === 'BL') {
+    if (semPersonagem) return raw;
+    return `Star Wars The Black Series Figura de Ação ${personagem}`;
+  }
+  if (first === 'SFR') {
+    if (semPersonagem) return raw;
+    return hasDeluxe
+      ? `Star Wars Retro Collection Deluxe Figura de Ação ${personagem}`
+      : `Star Wars Retro Collection Figura de Ação ${personagem}`;
+  }
+
+  // Transformers
+  if (first === 'TRA' && second === 'GEN') {
+    if (semPersonagem) return raw;
+    let sub = '';
+    if (/STUDIO\s*SERIES/i.test(raw)) sub = ' Studio Series';
+    else if (/COLLABORATIVE/i.test(raw)) sub = ' Collaborative';
+    else if (/\bNFL\b/i.test(raw)) sub = ' NFL';
+    return `Transformers Generations${sub} Figura de Ação ${personagem}`;
+  }
+
+  // Marvel Legends — sem código de prefixo próprio no guia; detecta pelo nome da linha
+  if (/MARVEL\s*LEGENDS/i.test(raw)) {
+    if (semPersonagem) return raw;
+    let pre = 'Marvel Legends';
+    if (hasDeluxe) pre += ' Deluxe'; else if (hasRetro) pre += ' Retro';
+    return `${pre} Figura de Ação ${personagem}`;
+  }
+
+  return raw; // marca não coberta pelo guia — mantém o nome original, nunca inventa
+}
+
+// Aplica a geração de título no campo base, ANTES do chrisAlias — assim o título limpo
+// se propaga automaticamente pra Amazon/ML/Ri Happy/Americanas (todos derivam desse campo).
+function aplicarTituloComercial(p){
+  const rawKey = ('Comum · Nome do Produto (base)' in p) ? 'Comum · Nome do Produto (base)'
+               : (('Nome do Produto (base)' in p) ? 'Nome do Produto (base)' : null);
+  if (!rawKey) return;
+  const raw = clean(p[rawKey]);
+  if (!raw) return;
+  const personagem = p['Comum · Personagem / Linha'] ?? p['Personagem / Linha'] ?? '';
+  const cor        = p['Comum · Cor (se houver variação)'] ?? p['Cor (se houver variação)'] ?? '';
+  const tipoAmz    = clean(p['Amazon · Tipo (product_type)'] ?? p['Tipo Amazon (product_type)'] ?? '').toUpperCase();
+  const novo = gerarTituloComercial(raw, personagem, cor, tipoAmz);
+  if (novo && novo !== raw) p[rawKey] = novo;
+}
+
 function normalizeBrand(b) {
   if (!b) return b;
   const trimmed = String(b).trim();
@@ -5404,6 +5559,7 @@ async function processar() {
     if (!row.some(v => String(v).trim())) continue;
     const p = {};
     Object.entries(cm).forEach(([k, i]) => { p[k] = String(row[i]||'').trim(); });
+    aplicarTituloComercial(p);  // v49: converte código interno Hasbro em título comercial
     const skuRaw = String(p['Comum · SKU / Ref. Fornecedor'] || p['SKU / Ref. Fornecedor'] || '').trim().toUpperCase();
     const isExample = /^(E9531|ABC123|EXEMPLO|TODOS\b|—|---)/i.test(skuRaw) || skuRaw.includes('LINHA EXEMPLO');
     // aceita o produto se tiver QUALQUER identificador preenchido: SKU, EAN, DUN ou Nome.
